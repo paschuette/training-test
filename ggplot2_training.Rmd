@@ -1,0 +1,191 @@
+---
+title: "ggplot2_lesson"
+author: "Paul Schuette"
+date: "May 18, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+To demonstrate ggplot2, we’re going to work with two example datasets
+
+```{r}
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(tidyr)
+  library(dplyr)
+})
+```
+
+```{r}
+permits <- read.csv(url("https://knb.ecoinformatics.org/knb/d1/mn/v2/object/urn%3Auuid%3Aa3c58bd6-481e-4c64-aa93-795df10a4664", method = "libcurl"),
+                    stringsAsFactors = FALSE)
+head(permits)
+```
+
+Every graphic you make in ggplot2 will have at least one aesthetic and at least one geom (layer). The aesthetic maps your data to your geometry (layer). Your geometry specifies the type of plot we’re making (point, bar, etc.).
+
+```{r}
+ggplot(permits, aes(Value, StdDev)) + 
+  geom_point()
+```
+
+What makes ggplot really powerful is how quickly we can make this plot visualize more aspects of our data. Coloring each point by class (compact, van, pickup, etc.) is just a quick extra bit of code:
+
+```{r}
+ggplot(permits, aes(Value, StdDev, color = Gear)) + 
+  geom_point()
+```
+
+What if we just wanted the color of the points to be blue? Maybe we’d do this:
+
+```{r}
+ggplot(permits, aes(Value, StdDev, color = "blue")) +
+  geom_point()
+```
+
+What happened here? This is the difference between setting and mapping in ggplot. The aes function only takes mappings from our data onto our geom. If we want to make all the points blue, we need to set it inside the geom:
+
+```{r}
+ggplot(permits, aes(Value, StdDev)) +
+  geom_point(color = "blue")
+```
+
+Sizing each point by the range of the permit values is only a small change to the code:
+
+```{r}
+ggplot(permits, aes(Value, StdDev, color = Gear, size = Range)) +
+  geom_point()
+```
+
+Introduce scale_color_brewer: many options
+
+```{r}
+ggplot(permits, aes(Value, StdDev, color = Gear)) + 
+  geom_point()
+  scale_color_brewer(palette = "Paired")
+```
+```{r}
+ggplot(permits, aes(Value, StdDev, color = Gear)) + 
+  geom_point()
+  scale_color_brewer(palette = "Paired")
+  scale_x_log10()
+```
+
+Make barplot wih groups equal to Gear type and mean values
+
+```{r}
+permits %>%
+  group_by(Gear) %>% 
+  summarize(meanval = mean(Value, na.rm = TRUE)) %>% 
+  ggplot(aes(Gear, meanval)) +
+  geom_col() +
+  scale_x_discrete(labels = sort(unique(permits$Gear)))
+```
+
+
+Plot limits can be controlled one of three ways:
+
+    Filter the data (because limits are auto-calculated from the data ranges)
+    Set the limits argument on one or both scales
+    Set the xlim and ylim arguments in coord_cartesian()
+
+Let’s show this with an example plot:
+
+```{r}
+permits_se_seine <- permits %>% 
+  filter(Gear == "Purse Seine", 
+         Region == "Southeast")
+
+ggplot(permits_se_seine, aes(Year, Value)) + 
+  geom_point() +
+  geom_line()
+```
+
+```{r}
+head(permits_se_seine)
+```
+
+Let’s make the Y axis start from 0:
+
+```{r}
+ggplot(permits_se_seine, aes(Year, Value)) + 
+  geom_point() +
+  geom_line() +
+  scale_y_continuous(limits = c(0, max(permits_se_seine$Value)))
+```
+
+Let’s say, for some reason, we wanted to only show data from the year 2000 and onward:
+
+```{r}
+ggplot(permits_se_seine, aes(Year, Value)) + 
+  geom_point() +
+  geom_line() +
+  scale_y_continuous(limits = c(0, max(permits_se_seine$Value))) +
+  scale_x_continuous(limits = c(2000, max(permits_se_seine$Year)))
+```
+
+Note the warning message we received:
+
+    Warning message: Removed 18 rows containing missing values (geom_point). Removed 18 rows containing missing values (geom_path).
+
+That’s normal when data in your input data.frame are outside the range we’re plotting.
+
+Let’s use coord_cartesian instead to change the x and y limits:
+
+```{r}
+ggplot(permits_se_seine, aes(Year, Value)) + 
+  geom_point() +
+  geom_line() +
+  coord_cartesian(xlim = c(2000, max(permits_se_seine$Year)),
+                  ylim = c(0, max(permits_se_seine$Value)))
+```
+
+Back to the bar plots
+
+```{r}
+permits %>%
+  group_by(Gear) %>% 
+  summarize(meanval = mean(Value, na.rm = TRUE)) %>% 
+  arrange(Gear) %>%  #already in alphabetical order, but could arrange this way
+  ggplot(aes(Gear, meanval)) +
+  geom_col() +
+  scale_x_discrete(labels = sort(unique(permits$Gear)))
+```
+
+Facets allow us to create a powerful visualization called a small multiple:
+
+I use small multiples all the time when I have a variable like a site or year and I want to quickly compare across years. Let’s create a graphical comparison of the permit prices in Cook Inlet over time:
+
+
+ Change y axis and give a title and sub-title to the plot
+
+```{r}
+permits_ci <- permits %>%
+  filter(Region == "Cook Inlet")
+```
+ 
+Change themes 
+Save image using ggsave
+ 
+```{r paged.print=TRUE}
+ggplot(permits_ci, aes(Year, Value)) +
+  geom_point() +
+  geom_line() +
+  labs(y = "Permit Value",
+       title = "bristol bay permits",
+        subtitle = "I wish had one") +
+  facet_wrap(~ Gear)
+  theme_light()
+ggsave("Permit_values.png")
+```
+
+More details on saving plots here: http://ggplot2.tidyverse.org/reference/ggsave.html
+ggsave(filename, plot = last_plot(), device = NULL, path = NULL,
+  scale = 1, width = NA, height = NA, units = c("in", "cm", "mm"),
+  dpi = 300, limitsize = TRUE, ...)
+
+
+
